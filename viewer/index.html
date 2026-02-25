@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Aesthetic Creatures Viewer</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; font-family: system-ui, sans-serif; }
+      #ui {
+        position: absolute; left: 12px; top: 12px; z-index: 10;
+        background: rgba(255,255,255,0.92); padding: 10px 12px; border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        max-width: 360px;
+      }
+      #ui small { display: block; opacity: 0.75; margin-top: 6px; }
+      #canvas { width: 100%; height: 100%; display: block; }
+      .row { margin-top: 8px; display: flex; gap: 8px; align-items: center; }
+      input[type="range"] { width: 180px; }
+    </style>
+  </head>
+  <body>
+    <div id="ui">
+      <div><strong>Specimen replay</strong></div>
+      <div class="row">
+        <input id="file" type="file" accept=".json,application/json" />
+      </div>
+      <div class="row">
+        <button id="play">Play</button>
+        <button id="pause">Pause</button>
+        <label>Speed</label>
+        <input id="speed" type="range" min="0.1" max="2.5" step="0.1" value="1.0" />
+        <span id="speedLabel">1.0x</span>
+      </div>
+      <small>This viewer replays recorded link transforms; it does not re-simulate physics.</small>
+    </div>
+    <canvas id="canvas"></canvas>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
