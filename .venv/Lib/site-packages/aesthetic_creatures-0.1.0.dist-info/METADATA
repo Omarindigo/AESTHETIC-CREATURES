@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: aesthetic-creatures
+Version: 0.1.0
+Summary: PyBullet + Gymnasium creature simulation and recording framework
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: gymnasium>=0.29
+Requires-Dist: pybullet>=3.2.5
+Requires-Dist: numpy>=1.24

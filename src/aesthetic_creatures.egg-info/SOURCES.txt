@@ -1,0 +1,13 @@
+README.md
+pyproject.toml
+src/aesthetic_creatures/__init__.py
+src/aesthetic_creatures/controllers.py
+src/aesthetic_creatures/creatures.py
+src/aesthetic_creatures/envs.py
+src/aesthetic_creatures/recording.py
+src/aesthetic_creatures/utils.py
+src/aesthetic_creatures.egg-info/PKG-INFO
+src/aesthetic_creatures.egg-info/SOURCES.txt
+src/aesthetic_creatures.egg-info/dependency_links.txt
+src/aesthetic_creatures.egg-info/requires.txt
+src/aesthetic_creatures.egg-info/top_level.txt
