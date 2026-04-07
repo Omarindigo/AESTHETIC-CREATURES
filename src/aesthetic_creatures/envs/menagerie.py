@@ -1,26 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
-from pathlib import Path
-
-import gymnasium as gym
-import numpy as np
-import mujoco
-from gymnasium.wrappers import RecordEpisodeStatistics
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
-
-
-@dataclass
-class EnvSpec:
-    env_id: str
-    body_parts: List[str]
-    default_camera: str = "track"
-    observation_dim: Optional[int] = None
-    action_dim: Optional[int] = None
-    xml_path: Optional[str] = None
-    is_menagerie: bool = False
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -74,7 +55,7 @@ MENAGERIE_ROBOTS: Dict[str, MenagerieSpec] = {
         body_parts=["body", "fl_hx", "fr_hx", "hl_hx", "hr_hx"],
         maker="Boston Dynamics",
         dofs=12,
-        description="FamousSpot robot with arm",
+        description="Famous Spot robot with arm",
     ),
     "google_barkour_v0": MenagerieSpec(
         xml_path="mujoco_menagerie/google_barkour_v0/scene.xml",
@@ -90,7 +71,7 @@ MENAGERIE_ROBOTS: Dict[str, MenagerieSpec] = {
         dofs=12,
         description="Barbell quadruped design",
     ),
-    
+
     # ===== BIPEDS =====
     "agility_cassie": MenagerieSpec(
         xml_path="mujoco_menagerie/agility_cassie/scene.xml",
@@ -99,6 +80,8 @@ MENAGERIE_ROBOTS: Dict[str, MenagerieSpec] = {
         dofs=28,
         description="Dynamic bipedal robot",
     ),
+
+    # ===== HUMANOIDS =====
     "unitree_h1": MenagerieSpec(
         xml_path="mujoco_menagerie/unitree_h1/scene.xml",
         body_parts=["root", "torso", "head", "left_arm", "right_arm", "left_leg", "right_leg"],
@@ -176,7 +159,7 @@ MENAGERIE_ROBOTS: Dict[str, MenagerieSpec] = {
         dofs=25,
         description="Lightweight humanoid",
     ),
-    
+
     # ===== ROBOTIC ARMS =====
     "franka_panda": MenagerieSpec(
         xml_path="mujoco_menagerie/franka_emika_panda/scene.xml",
@@ -191,13 +174,6 @@ MENAGERIE_ROBOTS: Dict[str, MenagerieSpec] = {
         maker="Franka Robotics",
         dofs=7,
         description="Latest Franka arm",
-    ),
-    "panda": MenagerieSpec(
-        xml_path="mujoco_menagerie/franka_emika_panda/scene.xml",
-        body_parts=["panda_link0", "panda_link2", "panda_link3", "panda_link4", "panda_link5", "panda_link6", "panda_link7", "panda_hand"],
-        maker="Franka Robotics",
-        dofs=7,
-        description="Panda arm (same as franka_panda)",
     ),
     "kuka_iiwa_14": MenagerieSpec(
         xml_path="mujoco_menagerie/kuka_iiwa_14/scene.xml",
@@ -262,6 +238,8 @@ MENAGERIE_ROBOTS: Dict[str, MenagerieSpec] = {
         dofs=6,
         description="WidowX 250S arm",
     ),
+
+    # ===== HANDS =====
     "allegro_hand": MenagerieSpec(
         xml_path="mujoco_menagerie/wonik_allegro/scene_right.xml",
         body_parts=["palm", "thumb", "index", "middle", "ring"],
@@ -283,7 +261,7 @@ MENAGERIE_ROBOTS: Dict[str, MenagerieSpec] = {
         dofs=16,
         description="Low-profile dexterous hand",
     ),
-    
+
     # ===== MOBILE MANIPULATORS =====
     "google_robot": MenagerieSpec(
         xml_path="mujoco_menagerie/google_robot/scene.xml",
@@ -313,7 +291,7 @@ MENAGERIE_ROBOTS: Dict[str, MenagerieSpec] = {
         dofs=16,
         description="Bimanual teleoperation platform",
     ),
-    
+
     # ===== DRONES =====
     "crazyflie_2": MenagerieSpec(
         xml_path="mujoco_menagerie/bitcraze_crazyflie_2/scene.xml",
@@ -329,7 +307,7 @@ MENAGERIE_ROBOTS: Dict[str, MenagerieSpec] = {
         dofs=0,
         description="Autonomous drone",
     ),
-    
+
     # ===== BIOMECHANICAL =====
     "iit_softfoot": MenagerieSpec(
         xml_path="mujoco_menagerie/iit_softfoot/scene.xml",
@@ -355,181 +333,8 @@ MENAGERIE_ROBOTS: Dict[str, MenagerieSpec] = {
 }
 
 
-ENVIRONMENTS: Dict[str, EnvSpec] = {
-    # ===== STANDARD GYMNASIUM MUJOCO =====
-    
-    # Quadrupeds
-    "Ant-v5": EnvSpec(env_id="Ant-v5", body_parts=["torso", "front_left_leg", "front_right_leg", "back_left_leg", "back_right_leg"]),
-    "Ant-v4": EnvSpec(env_id="Ant-v4", body_parts=["torso", "front_left_leg", "front_right_leg", "back_left_leg", "back_right_leg"]),
-    
-    # Bipeds
-    "Humanoid-v5": EnvSpec(env_id="Humanoid-v5", body_parts=["torso", "head", "left_hand", "right_foot"]),
-    "Humanoid-v4": EnvSpec(env_id="Humanoid-v4", body_parts=["torso", "head", "left_hand", "right_foot"]),
-    "HumanoidStandup-v5": EnvSpec(env_id="HumanoidStandup-v5", body_parts=["torso", "head", "left_hand", "right_foot"]),
-    "HumanoidStandup-v4": EnvSpec(env_id="HumanoidStandup-v4", body_parts=["torso", "head", "left_hand", "right_foot"]),
-    
-    # Walkers
-    "Hopper-v5": EnvSpec(env_id="Hopper-v5", body_parts=["torso", "foot"]),
-    "Hopper-v4": EnvSpec(env_id="Hopper-v4", body_parts=["torso", "foot"]),
-    "Walker2d-v5": EnvSpec(env_id="Walker2d-v5", body_parts=["torso", "foot"]),
-    "Walker2d-v4": EnvSpec(env_id="Walker2d-v4", body_parts=["torso", "foot"]),
-    
-    # Swimmers
-    "Swimmer-v5": EnvSpec(env_id="Swimmer-v5", body_parts=["torso", "head"]),
-    "Swimmer-v4": EnvSpec(env_id="Swimmer-v4", body_parts=["torso", "head"]),
-    "Swimmer-v3": EnvSpec(env_id="Swimmer-v3", body_parts=["torso", "head"]),
-    
-    # Cheetah
-    "HalfCheetah-v5": EnvSpec(env_id="HalfCheetah-v5", body_parts=["torso", "foot"]),
-    "HalfCheetah-v4": EnvSpec(env_id="HalfCheetah-v4", body_parts=["torso", "foot"]),
-    "HalfCheetah-v3": EnvSpec(env_id="HalfCheetah-v3", body_parts=["torso", "foot"]),
-    
-    # Manipulation
-    "Pusher-v5": EnvSpec(env_id="Pusher-v5", body_parts=["r_elbow_flex_link", "r_wrist_flex_link"]),
-    "Pusher-v4": EnvSpec(env_id="Pusher-v4", body_parts=["r_elbow_flex_link", "r_wrist_flex_link"]),
-    "Pusher-v2": EnvSpec(env_id="Pusher-v2", body_parts=["r_elbow_flex_link", "r_wrist_flex_link"]),
-    "Reacher-v5": EnvSpec(env_id="Reacher-v5", body_parts=["tip"]),
-    "Reacher-v4": EnvSpec(env_id="Reacher-v4", body_parts=["tip"]),
-    "Reacher-v2": EnvSpec(env_id="Reacher-v2", body_parts=["tip"]),
-    
-    # Pendulums
-    "InvertedPendulum-v5": EnvSpec(env_id="InvertedPendulum-v5", body_parts=["cart", "pole"]),
-    "InvertedPendulum-v4": EnvSpec(env_id="InvertedPendulum-v4", body_parts=["cart", "pole"]),
-    "InvertedPendulum-v2": EnvSpec(env_id="InvertedPendulum-v2", body_parts=["cart", "pole"]),
-    "InvertedDoublePendulum-v5": EnvSpec(env_id="InvertedDoublePendulum-v5", body_parts=["cart", "pole_a", "pole_b"]),
-    "InvertedDoublePendulum-v4": EnvSpec(env_id="InvertedDoublePendulum-v4", body_parts=["cart", "pole_a", "pole_b"]),
-    "InvertedDoublePendulum-v3": EnvSpec(env_id="InvertedDoublePendulum-v3", body_parts=["cart", "pole_a", "pole_b"]),
-    
-    # Fetch
-    "FetchReach-v5": EnvSpec(env_id="FetchReach-v5", body_parts=["robot0:gripper_link"]),
-    "FetchReach-v4": EnvSpec(env_id="FetchReach-v4", body_parts=["robot0:gripper_link"]),
-    "FetchReach-v2": EnvSpec(env_id="FetchReach-v2", body_parts=["robot0:gripper_link"]),
-    "FetchSlide-v5": EnvSpec(env_id="FetchSlide-v5", body_parts=["robot0:gripper_link"]),
-    "FetchSlide-v4": EnvSpec(env_id="FetchSlide-v4", body_parts=["robot0:gripper_link"]),
-    "FetchSlide-v2": EnvSpec(env_id="FetchSlide-v2", body_parts=["robot0:gripper_link"]),
-    "FetchPush-v5": EnvSpec(env_id="FetchPush-v5", body_parts=["robot0:gripper_link"]),
-    "FetchPush-v4": EnvSpec(env_id="FetchPush-v4", body_parts=["robot0:gripper_link"]),
-    "FetchPush-v2": EnvSpec(env_id="FetchPush-v2", body_parts=["robot0:gripper_link"]),
-    "FetchPickAndPlace-v5": EnvSpec(env_id="FetchPickAndPlace-v5", body_parts=["robot0:gripper_link"]),
-    "FetchPickAndPlace-v4": EnvSpec(env_id="FetchPickAndPlace-v4", body_parts=["robot0:gripper_link"]),
-    "FetchPickAndPlace-v2": EnvSpec(env_id="FetchPickAndPlace-v2", body_parts=["robot0:gripper_link"]),
-    
-    # Hand
-    "HandReach-v5": EnvSpec(env_id="HandReach-v5", body_parts=["hand"]),
-    "HandReach-v4": EnvSpec(env_id="HandReach-v4", body_parts=["hand"]),
-    "HandReach-v0": EnvSpec(env_id="HandReach-v0", body_parts=["hand"]),
-    "HandManipulateBlock-v5": EnvSpec(env_id="HandManipulateBlock-v5", body_parts=["robot0:ffdistal", "robot0:mfdistal", "robot0:rfdistal", "robot0:lfdistal"]),
-    "HandManipulateBlock-v4": EnvSpec(env_id="HandManipulateBlock-v4", body_parts=["robot0:ffdistal", "robot0:mfdistal", "robot0:rfdistal", "robot0:lfdistal"]),
-    "HandManipulateBlock-v0": EnvSpec(env_id="HandManipulateBlock-v0", body_parts=["robot0:ffdistal", "robot0:mfdistal", "robot0:rfdistal", "robot0:lfdistal"]),
-    "HandManipulateEgg-v5": EnvSpec(env_id="HandManipulateEgg-v5", body_parts=["robot0:ffdistal", "robot0:mfdistal", "robot0:rfdistal", "robot0:lfdistal"]),
-    "HandManipulateEgg-v4": EnvSpec(env_id="HandManipulateEgg-v4", body_parts=["robot0:ffdistal", "robot0:mfdistal", "robot0:rfdistal", "robot0:lfdistal"]),
-    "HandManipulateEgg-v0": EnvSpec(env_id="HandManipulateEgg-v0", body_parts=["robot0:ffdistal", "robot0:mfdistal", "robot0:rfdistal", "robot0:lfdistal"]),
-    "HandManipulatePen-v5": EnvSpec(env_id="HandManipulatePen-v5", body_parts=["robot0:ffdistal", "robot0:mfdistal", "robot0:rfdistal", "robot0:lfdistal"]),
-    "HandManipulatePen-v4": EnvSpec(env_id="HandManipulatePen-v4", body_parts=["robot0:ffdistal", "robot0:mfdistal", "robot0:rfdistal", "robot0:lfdistal"]),
-    "HandManipulatePen-v0": EnvSpec(env_id="HandManipulatePen-v0", body_parts=["robot0:ffdistal", "robot0:mfdistal", "robot0:rfdistal", "robot0:lfdistal"]),
-}
-
-
-def get_available_environments() -> List[str]:
-    return list(ENVIRONMENTS.keys()) + list(MENAGERIE_ROBOTS.keys())
-
-
-def get_env_spec(env_id: str) -> EnvSpec:
-    if env_id in ENVIRONMENTS:
-        return ENVIRONMENTS[env_id]
-    if env_id in MENAGERIE_ROBOTS:
-        menagerie = MENAGERIE_ROBOTS[env_id]
-        return EnvSpec(
-            env_id=env_id,
-            body_parts=menagerie.body_parts,
-            xml_path=menagerie.xml_path,
-            is_menagerie=True
-        )
-    return EnvSpec(env_id=env_id, body_parts=["torso"])
-
-
 def get_menagerie_spec(robot_id: str) -> Optional[MenagerieSpec]:
     return MENAGERIE_ROBOTS.get(robot_id)
-
-
-def env_factory(env_id: str, seed: int, rank: int, render_mode: Optional[str] = None):
-    def _make():
-        env = gym.make(env_id, render_mode=render_mode)
-        env = RecordEpisodeStatistics(env)
-        env = Monitor(env)
-        env.reset(seed=seed + rank)
-        return env
-    return _make
-
-
-def make_training_env(env_id: str, n_envs: int, seed: int):
-    env_fns = [env_factory(env_id, seed, rank=i, render_mode=None) for i in range(n_envs)]
-    vec_env = DummyVecEnv(env_fns)
-    vec_env = VecMonitor(vec_env)
-    return vec_env
-
-
-def make_eval_env(env_id: str, seed: int, render_mode: Optional[str] = "rgb_array"):
-    return env_factory(env_id, seed, rank=10_000, render_mode=render_mode)()
-
-
-def get_mujoco_state(env, body_parts: Optional[List[str]] = None) -> Dict[str, np.ndarray]:
-    base = env.unwrapped
-    state: Dict[str, np.ndarray] = {}
-
-    if hasattr(base, "data"):
-        data = base.data
-        if hasattr(data, "qpos"):
-            state["qpos"] = np.array(data.qpos, dtype=np.float32).copy()
-        if hasattr(data, "qvel"):
-            state["qvel"] = np.array(data.qvel, dtype=np.float32).copy()
-        if hasattr(data, "cfrc_ext"):
-            state["cfrc_ext"] = np.array(data.cfrc_ext, dtype=np.float32).copy()
-
-    if body_parts is None:
-        try:
-            body_parts = get_env_spec(env.spec.id).body_parts
-        except:
-            body_parts = ["torso"]
-
-    for body_name in body_parts:
-        try:
-            pos = base.get_body_com(body_name)
-            state[f"{body_name}_com"] = np.array(pos, dtype=np.float32).copy()
-        except Exception:
-            try:
-                xpos = base.data.get_xpos(body_name)
-                if xpos is not None:
-                    state[f"{body_name}_com"] = np.array(xpos, dtype=np.float32).copy()
-            except Exception:
-                pass
-
-    if "torso_com" not in state and "root" in dir(base):
-        try:
-            state["torso_com"] = np.array(base.data.qpos[:3], dtype=np.float32).copy()
-        except Exception:
-            pass
-
-    return state
-
-
-def get_primary_body_position(state: Dict[str, np.ndarray]) -> np.ndarray:
-    for key in ["torso_com", "hand_com", "foot_com", "tip_com", "base_com", "panda_hand_com", "gripper_com"]:
-        if key in state:
-            return state[key]
-    
-    for k, v in state.items():
-        if k.endswith("_com") and len(v) >= 2:
-            return v
-    
-    if "qpos" in state and len(state["qpos"]) >= 3:
-        return state["qpos"][:3]
-    
-    return np.zeros(3, dtype=np.float32)
-
-
-def safe_array(x: Any, dtype=np.float32) -> np.ndarray:
-    return np.asarray(x, dtype=dtype)
 
 
 def list_menagerie_by_category() -> Dict[str, List[Tuple[str, str]]]:

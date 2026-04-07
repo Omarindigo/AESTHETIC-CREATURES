@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 import mujoco
 import numpy as np
 from gymnasium import spaces
 
-from aesthetic_creatures.envs import get_menagerie_spec, get_env_spec
-from aesthetic_creatures.art import make_art_video
+from aesthetic_creatures.envs import get_menagerie_spec, list_menagerie_by_category, MENAGERIE_ROBOTS
+from aesthetic_creatures.rendering import make_art_video
 
 
 class MenagerieEnv:
@@ -33,44 +32,30 @@ class MenagerieEnv:
         self._max_episode_steps = 1000
         self._elapsed_steps = 0
         
-        self.observation_space = spaces.Box(
-            low=-np.inf, high=np.inf, shape=(self.nq + self.nu,), dtype=np.float32
-        )
-        self.action_space = spaces.Box(
-            low=-1.0, high=1.0, shape=(self.nu,), dtype=np.float32
-        )
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.nq + self.nu,), dtype=np.float32)
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(self.nu,), dtype=np.float32)
         
         self.viewer = None
-        self._frame = None
     
     def reset(self, *, seed: int = None, options: dict = None):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
         self._elapsed_steps = 0
-        
         obs = np.concatenate([self.data.qpos, self.data.qvel])[:self.observation_space.shape[0]]
         return obs.astype(np.float32), {}
     
     def step(self, action: np.ndarray):
         action = np.clip(action, -1, 1)
         self.data.ctrl[:] = action * self.model.actuator_ctrlrange[:, 1]
-        
         for _ in range(10):
             mujoco.mj_step(self.model, self.data)
         
         obs = np.concatenate([self.data.qpos, self.data.qvel])[:self.observation_space.shape[0]]
-        reward = float(self._get_reward())
-        terminated = self._is_terminated()
+        reward = 0.0
+        terminated = False
         truncated = self._elapsed_steps >= self._max_episode_steps
-        
         self._elapsed_steps += 1
         return obs.astype(np.float32), reward, terminated, truncated, {}
-    
-    def _get_reward(self) -> float:
-        return 0.0
-    
-    def _is_terminated(self) -> bool:
-        return False
     
     def render(self):
         if self.render_mode == "rgb_array":
@@ -96,18 +81,10 @@ class RandomPolicy:
         self.action_space = action_space
     
     def predict(self, obs, deterministic=False):
-        action = self.action_space.sample()
-        return action, None
+        return self.action_space.sample(), None
 
 
-def record_menagerie(
-    xml_path: str,
-    robot_id: str,
-    output_path: str,
-    num_episodes: int = 1,
-    max_steps: int = 1000,
-    fps: int = 30,
-) -> list:
+def record_menagerie(xml_path: str, robot_id: str, output_path: str, num_episodes: int = 1, max_steps: int = 1000, fps: int = 30) -> list:
     spec = get_menagerie_spec(robot_id)
     if spec is None:
         raise ValueError(f"Unknown robot: {robot_id}")
@@ -119,7 +96,6 @@ def record_menagerie(
     
     env = MenagerieEnv(xml_path, render_mode="rgb_array")
     policy = RandomPolicy(env.action_space)
-    
     all_data = []
     
     for ep in range(num_episodes):
@@ -131,7 +107,6 @@ def record_menagerie(
         qvel_history = []
         actions_history = []
         rewards_history = []
-        
         torso_positions = []
         
         for step in range(max_steps):
@@ -155,14 +130,13 @@ def record_menagerie(
                     pass
             
             if body_positions:
-                primary_pos = list(body_positions.values())[0]
-                torso_positions.append(primary_pos)
+                torso_positions.append(list(body_positions.values())[0])
             
             if terminated or truncated:
                 break
             
             if step % 100 == 0:
-                print(f"  Step {step}/{max_steps}, Reward: {sum(rewards_history):.2f}")
+                print(f"  Step {step}/{max_steps}")
         
         episode_data = {
             "env_id": robot_id,
@@ -180,13 +154,12 @@ def record_menagerie(
             episode_data["torso_com"] = np.array(torso_positions, dtype=np.float32)
         
         all_data.append(episode_data)
-        
         print(f"  Episode complete! Reward: {episode_data['episode_reward']:.2f}, Length: {episode_data['episode_length']}")
         
         if frames:
+            import imageio.v2 as imageio
             video_path = Path(output_path).parent / f"{robot_id}_ep{ep+1}.mp4"
             video_path.parent.mkdir(parents=True, exist_ok=True)
-            import imageio.v2 as imageio
             imageio.mimsave(str(video_path), frames, fps=fps)
             print(f"  Saved video: {video_path}")
     
@@ -216,8 +189,6 @@ def main() -> None:
         print("\nInstall: pip install mujoco_menagerie")
         print("Or clone: git clone https://github.com/google-deepmind/mujoco_menagerie.git\n")
         
-        from aesthetic_creatures.envs import list_menagerie_by_category, MENAGERIE_ROBOTS
-        
         cats = list_menagerie_by_category()
         for cat, robots in cats.items():
             if robots:
@@ -244,20 +215,12 @@ def main() -> None:
         print("\nPlease install MuJoCo Menagerie:")
         print("  Option 1: pip install mujoco_menagerie")
         print("  Option 2: git clone https://github.com/google-deepmind/mujoco_menagerie.git")
-        print(f"\nThen run with --xml-path pointing to the scene.xml file")
         return
     
     output_dir = Path(args.output_dir) / robot_id
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    data = record_menagerie(
-        xml_path=xml_path,
-        robot_id=robot_id,
-        output_path=str(output_dir),
-        num_episodes=args.num_episodes,
-        max_steps=args.max_steps,
-        fps=args.fps,
-    )
+    data = record_menagerie(xml_path=xml_path, robot_id=robot_id, output_path=str(output_dir), num_episodes=args.num_episodes, max_steps=args.max_steps, fps=args.fps)
     
     if data and "torso_com" in data[0]:
         rollout_path = output_dir / f"{robot_id}_rollout.npz"
@@ -265,13 +228,7 @@ def main() -> None:
         print(f"\nSaved rollout: {rollout_path}")
         
         art_path = output_dir / f"{robot_id}_art.mp4"
-        make_art_video(
-            rollout_npz=str(rollout_path),
-            output_path=str(art_path),
-            width=1080,
-            height=1080,
-            fps=args.fps,
-        )
+        make_art_video(rollout_npz=str(rollout_path), output_path=str(art_path), width=1080, height=1080, fps=args.fps)
         print(f"Generated art: {art_path}")
     
     print("\nDone!")

@@ -5,18 +5,17 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from aesthetic_creatures.config import TrainConfig, prepare_run_dirs, save_config
-from aesthetic_creatures.envs import make_eval_env, make_training_env, get_env_spec, list_menagerie_by_category, MENAGERIE_ROBOTS
-from aesthetic_creatures.model import build_model
-from aesthetic_creatures.recorder import append_metrics_row, run_episode_and_record, save_rollout_npz
-from aesthetic_creatures.render import save_video
+from aesthetic_creatures.envs import make_eval_env, make_training_env, get_env_spec, ENVIRONMENTS, list_menagerie_by_category, MENAGERIE_ROBOTS
+from aesthetic_creatures.models import build_model
+from aesthetic_creatures.recording import append_metrics_row, run_episode_and_record, save_rollout_npz
+from aesthetic_creatures.rendering import save_video
 
 
 def evaluate_and_export(model, config: TrainConfig, step_count: int, paths) -> dict:
     eval_env = make_eval_env(config.env_id, config.seed, render_mode="rgb_array")
-    
     env_spec = get_env_spec(config.env_id)
     body_parts = env_spec.body_parts
 
@@ -61,14 +60,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train MuJoCo agents with PPO and export rollout data.")
     
     envs = parser.add_argument_group("Environment")
-    envs.add_argument("--env-id", type=str, default="Ant-v5", 
-                      help="Gymnasium environment ID (see list below)")
-    envs.add_argument("--list-envs", action="store_true", 
-                      help="List all available environments")
+    envs.add_argument("--env-id", type=str, default="Ant-v5", help="Gymnasium environment ID")
+    envs.add_argument("--list-envs", action="store_true", help="List all available environments")
     
     paths = parser.add_argument_group("Paths")
-    paths.add_argument("--output-dir", type=str, default=None,
-                      help="Output directory (default: runs/{env_id})")
+    paths.add_argument("--output-dir", type=str, default=None, help="Output directory")
     
     training = parser.add_argument_group("Training")
     training.add_argument("--total-timesteps", type=int, default=1_000_000)
@@ -101,44 +97,41 @@ def parse_args() -> argparse.Namespace:
 
 
 def list_environments():
-    from aesthetic_creatures.envs import get_available_environments, ENVIRONMENTS
-    
     print("\n" + "=" * 70)
-    print(" GYMNASIUM MUJOCO ENVIRONMENTS (Standard)")
+    print(" GYMNASIUM MUJOCO ENVIRONMENTS")
     print("=" * 70)
     
     categories = {
         "Quadrupeds": [],
-        "Bipeds": [],
+        "Humanoids": [],
         "Walkers": [],
         "Swimmers": [],
-        "Robots": [],
+        "Cheetah": [],
+        "Manipulation": [],
         "Pendulums": [],
         "Fetch": [],
         "Hand": [],
     }
     
-    for env_id in sorted(get_available_environments()):
-        if env_id in MENAGERIE_ROBOTS:
-            continue
+    for env_id in sorted(ENVIRONMENTS.keys()):
         if "Ant" in env_id:
             categories["Quadrupeds"].append(env_id)
         elif "Humanoid" in env_id:
-            categories["Bipeds"].append(env_id)
+            categories["Humanoids"].append(env_id)
         elif "Hopper" in env_id or "Walker2d" in env_id:
             categories["Walkers"].append(env_id)
         elif "Swimmer" in env_id:
             categories["Swimmers"].append(env_id)
         elif "Cheetah" in env_id:
-            categories["Robots"].append(env_id)
+            categories["Cheetah"].append(env_id)
+        elif "Pusher" in env_id or "Reacher" in env_id:
+            categories["Manipulation"].append(env_id)
         elif "Pendulum" in env_id or "InvertedPendulum" in env_id:
             categories["Pendulums"].append(env_id)
         elif "Fetch" in env_id:
             categories["Fetch"].append(env_id)
         elif "Hand" in env_id or "Manipulate" in env_id:
             categories["Hand"].append(env_id)
-        elif "Pusher" in env_id or "Reacher" in env_id:
-            categories["Robots"].append(env_id)
     
     for category, envs in categories.items():
         if envs:
@@ -147,23 +140,21 @@ def list_environments():
                 print(f"    {env_id}")
     
     print("\n" + "=" * 70)
-    print(" MUJOCO MENAGERIE (Real Robot Models)")
+    print(" MUJOCO MENAGERIE (Real Robots)")
     print("=" * 70)
     print("\n  Requires: pip install mujoco_menagerie")
-    print("  Or clone: git clone https://github.com/google-deepmind/mujoco_menagerie.git")
-    print()
+    print("  Or clone: git clone https://github.com/google-deepmind/mujoco_menagerie.git\n")
     
     menagerie_cats = list_menagerie_by_category()
-    
     for category, robots in menagerie_cats.items():
         if robots:
             print(f"\n  {category}:")
             for robot_id, maker in robots:
                 spec = MENAGERIE_ROBOTS[robot_id]
-                print(f"    {robot_id:<30} ({spec.dofs} DoF) - {maker}")
+                print(f"    {robot_id:<25} ({spec.dofs} DoF) - {maker}")
     
     print("\n" + "=" * 70)
-    print("\nTo train on a Menagerie robot, use: python -m aesthetic_creatures.train_menagerie")
+    print("\nTo train on Menagerie robots, use: python -m aesthetic_creatures.scripts.train_menagerie")
     print("=" * 70 + "\n")
 
 
