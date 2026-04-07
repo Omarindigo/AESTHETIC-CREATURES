@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from .envs import get_mujoco_state, safe_array
+from .envs import get_mujoco_state, get_env_spec, safe_array
 
 
 def run_episode_and_record(
@@ -16,8 +16,13 @@ def run_episode_and_record(
     deterministic: bool,
     capture_frames: bool,
     frame_stride: int,
+    body_parts: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     obs, info = env.reset()
+
+    env_id = getattr(env.spec, "id", "unknown")
+    if body_parts is None:
+        body_parts = get_env_spec(env_id).body_parts
 
     observations: List[np.ndarray] = [safe_array(obs)]
     actions: List[np.ndarray] = []
@@ -28,18 +33,22 @@ def run_episode_and_record(
     frames: List[np.ndarray] = []
     qpos: List[np.ndarray] = []
     qvel: List[np.ndarray] = []
-    torso_com: List[np.ndarray] = []
     cfrc_ext: List[np.ndarray] = []
+    
+    body_positions: Dict[str, List[np.ndarray]] = {bp: [] for bp in body_parts}
 
-    state0 = get_mujoco_state(env)
+    state0 = get_mujoco_state(env, body_parts)
     if "qpos" in state0:
         qpos.append(state0["qpos"])
     if "qvel" in state0:
         qvel.append(state0["qvel"])
-    if "torso_com" in state0:
-        torso_com.append(state0["torso_com"])
     if "cfrc_ext" in state0:
         cfrc_ext.append(state0["cfrc_ext"])
+    
+    for bp in body_parts:
+        key = f"{bp}_com"
+        if key in state0:
+            body_positions[bp].append(state0[key])
 
     if capture_frames:
         frame = env.render()
@@ -63,15 +72,18 @@ def run_episode_and_record(
         episode_reward += float(reward)
         episode_length += 1
 
-        st = get_mujoco_state(env)
+        st = get_mujoco_state(env, body_parts)
         if "qpos" in st:
             qpos.append(st["qpos"])
         if "qvel" in st:
             qvel.append(st["qvel"])
-        if "torso_com" in st:
-            torso_com.append(st["torso_com"])
         if "cfrc_ext" in st:
             cfrc_ext.append(st["cfrc_ext"])
+        
+        for bp in body_parts:
+            key = f"{bp}_com"
+            if key in st:
+                body_positions[bp].append(st[key])
 
         if capture_frames and ((step_idx + 1) % max(frame_stride, 1) == 0):
             frame = env.render()
@@ -82,7 +94,9 @@ def run_episode_and_record(
         if terminated or truncated:
             break
 
-    return {
+    result = {
+        "env_id": env_id,
+        "body_parts": body_parts,
         "observations": np.stack(observations).astype(np.float32),
         "actions": np.stack(actions).astype(np.float32) if actions else np.zeros((0,), dtype=np.float32),
         "rewards": np.array(rewards, dtype=np.float32),
@@ -93,23 +107,38 @@ def run_episode_and_record(
         "frames": np.stack(frames).astype(np.uint8) if frames else np.zeros((0,), dtype=np.uint8),
         "qpos": np.stack(qpos).astype(np.float32) if qpos else np.zeros((0,), dtype=np.float32),
         "qvel": np.stack(qvel).astype(np.float32) if qvel else np.zeros((0,), dtype=np.float32),
-        "torso_com": np.stack(torso_com).astype(np.float32) if torso_com else np.zeros((0,), dtype=np.float32),
         "cfrc_ext": np.stack(cfrc_ext).astype(np.float32) if cfrc_ext else np.zeros((0,), dtype=np.float32),
         "final_info": infos[-1] if infos else {},
     }
+    
+    for bp, positions in body_positions.items():
+        if positions:
+            result[f"{bp}_com"] = np.stack(positions).astype(np.float32)
+        else:
+            result[f"{bp}_com"] = np.zeros((0, 3), dtype=np.float32)
+    
+    if "torso_com" in result:
+        result["primary_com"] = result["torso_com"]
+    elif body_parts and f"{body_parts[0]}_com" in result:
+        result["primary_com"] = result[f"{body_parts[0]}_com"]
+
+    return result
 
 
 def save_rollout_npz(data: Dict[str, Any], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    serializable = {k: v for k, v in data.items() if isinstance(v, np.ndarray)}
+    serializable = {k: v for k, v in data.items() if isinstance(v, np.ndarray) or isinstance(v, (list, tuple)) and len(v) > 0 and isinstance(v[0], str)}
+    if "final_info" in serializable:
+        del serializable["final_info"]
     np.savez_compressed(output_path, **serializable)
 
 
 def append_metrics_row(csv_path: Path, row: Dict[str, Any]) -> None:
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     file_exists = csv_path.exists()
+    serializable_row = {k: v for k, v in row.items() if not isinstance(v, (dict, list)) or isinstance(v, (list, tuple))}
     with csv_path.open("a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+        writer = csv.DictWriter(f, fieldnames=list(serializable_row.keys()))
         if not file_exists:
             writer.writeheader()
-        writer.writerow(row)
+        writer.writerow(serializable_row)
