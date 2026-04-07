@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from aesthetic_creatures.config import TrainConfig, prepare_run_dirs, save_config
-from aesthetic_creatures.envs import make_eval_env, make_training_env, get_env_spec
+from aesthetic_creatures.envs import make_eval_env, make_training_env, get_env_spec, list_menagerie_by_category, MENAGERIE_ROBOTS
 from aesthetic_creatures.model import build_model
 from aesthetic_creatures.recorder import append_metrics_row, run_episode_and_record, save_rollout_npz
 from aesthetic_creatures.render import save_video
@@ -103,8 +103,9 @@ def parse_args() -> argparse.Namespace:
 def list_environments():
     from aesthetic_creatures.envs import get_available_environments, ENVIRONMENTS
     
-    print("\nAvailable MuJoCo Environments:")
-    print("=" * 60)
+    print("\n" + "=" * 70)
+    print(" GYMNASIUM MUJOCO ENVIRONMENTS (Standard)")
+    print("=" * 70)
     
     categories = {
         "Quadrupeds": [],
@@ -118,6 +119,8 @@ def list_environments():
     }
     
     for env_id in sorted(get_available_environments()):
+        if env_id in MENAGERIE_ROBOTS:
+            continue
         if "Ant" in env_id:
             categories["Quadrupeds"].append(env_id)
         elif "Humanoid" in env_id:
@@ -139,12 +142,29 @@ def list_environments():
     
     for category, envs in categories.items():
         if envs:
-            print(f"\n{category}:")
+            print(f"\n  {category}:")
             for env_id in envs:
-                spec = ENVIRONMENTS[env_id]
-                print(f"  {env_id}")
+                print(f"    {env_id}")
     
-    print("\n")
+    print("\n" + "=" * 70)
+    print(" MUJOCO MENAGERIE (Real Robot Models)")
+    print("=" * 70)
+    print("\n  Requires: pip install mujoco_menagerie")
+    print("  Or clone: git clone https://github.com/google-deepmind/mujoco_menagerie.git")
+    print()
+    
+    menagerie_cats = list_menagerie_by_category()
+    
+    for category, robots in menagerie_cats.items():
+        if robots:
+            print(f"\n  {category}:")
+            for robot_id, maker in robots:
+                spec = MENAGERIE_ROBOTS[robot_id]
+                print(f"    {robot_id:<30} ({spec.dofs} DoF) - {maker}")
+    
+    print("\n" + "=" * 70)
+    print("\nTo train on a Menagerie robot, use: python -m aesthetic_creatures.train_menagerie")
+    print("=" * 70 + "\n")
 
 
 def main() -> None:

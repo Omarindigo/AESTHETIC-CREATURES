@@ -11,9 +11,9 @@ Transform robotic motion into visual art. Train reinforcement learning agents on
 
 A pipeline combining MuJoCo physics simulation with artistic visualization:
 
-1. **Train** reinforcement learning agents (PPO) on any Gymnasium MuJoCo environment
-2. **Record** full trajectory data (positions, velocities, forces, body parts)
-3. **Render** simulation videos or generate abstract art from movement
+1. **Train** reinforcement learning agents (PPO) on MuJoCo environments
+2. **Record** full trajectory data (positions, velocities, forces)
+3. **Generate** abstract art from movement trajectories
 
 ## Quick Start
 
@@ -21,91 +21,122 @@ A pipeline combining MuJoCo physics simulation with artistic visualization:
 # Install dependencies
 pip install -r requirements.txt
 
-# List available environments
+# List all environments
 python -m aesthetic_creatures.train --list-envs
 
-# Train an Ant agent
+# Train on standard Gymnasium environment
 python -m aesthetic_creatures.train --env-id Ant-v5 --total-timesteps 1000000
 
-# Generate art with different styles
+# Record real robot from MuJoCo Menagerie
+python -m aesthetic_creatures.train_menagerie --robot unitree_go2 --xml-path mujoco_menagerie/unitree_go2/scene.xml
+
+# Generate art
 python -m aesthetic_creatures.replay make-art-video \
-    --rollout-npz runs/ant_v5/rollouts/ant_v5_step_001000000.npz \
+    --rollout-npz runs/...npz \
     --output-path my_art.mp4 \
     --style trail --palette aurora
 ```
 
 ## Supported Environments
 
-### Quadrupeds
-| Environment | Body Parts |
-|------------|------------|
-| `Ant-v5`, `Ant-v4` | torso, legs |
+### Standard Gymnasium MuJoCo
 
-### Bipeds
-| Environment | Body Parts |
-|------------|------------|
-| `Humanoid-v5`, `Humanoid-v4` | torso, head, hands, feet |
-| `HumanoidStandup-v5`, `HumanoidStandup-v4` | torso, head, hands, feet |
+| Category | Environments |
+|----------|-------------|
+| Quadrupeds | Ant-v5, Ant-v4 |
+| Bipeds | Humanoid-v5, Humanoid-v4, HumanoidStandup |
+| Walkers | Hopper-v5/v4, Walker2d-v5/v4 |
+| Swimmers | Swimmer-v5/v4/v3 |
+| Robots | HalfCheetah-v5/v4/v3, Pusher, Reacher |
+| Pendulums | InvertedPendulum, InvertedDoublePendulum |
+| Fetch | FetchReach, FetchPush, FetchSlide, FetchPickAndPlace |
+| Hand | HandReach, HandManipulateBlock/Egg/Pen |
 
-### Walkers
-| Environment | Body Parts |
-|------------|------------|
-| `Hopper-v5`, `Hopper-v4` | torso, foot |
-| `Walker2d-v5`, `Walker2d-v4` | torso, foot |
+### MuJoCo Menagerie (Real Robot Models)
 
-### Swimmers
-| Environment | Body Parts |
-|------------|------------|
-| `Swimmer-v5`, `Swimmer-v4`, `Swimmer-v3` | torso, head |
+Real-world robots from Google DeepMind's curated collection.
 
-### Cheetah
-| Environment | Body Parts |
-|------------|------------|
-| `HalfCheetah-v5`, `HalfCheetah-v4`, `HalfCheetah-v3` | torso, foot |
+**Requires:** `pip install mujoco_menagerie` or `git clone https://github.com/google-deepmind/mujoco_menagerie.git`
 
-### Robots
-| Environment | Body Parts |
-|------------|------------|
-| `Pusher-v5`, `Pusher-v4`, `Pusher-v2` | arm links |
-| `Reacher-v5`, `Reacher-v4`, `Reacher-v2` | tip |
+#### Quadrupeds
+| Robot | Maker | DoF | Description |
+|-------|-------|-----|-------------|
+| `unitree_go2` | Unitree | 12 | Advanced quadruped |
+| `unitree_go1` | Unitree | 12 | Budget quadruped |
+| `unitree_a1` | Unitree | 12 | High-speed |
+| `anymal_b` | ANYbotics | 12 | Industrial |
+| `anymal_c` | ANYbotics | 12 | Enhanced industrial |
+| `boston_dynamics_spot` | Boston Dynamics | 12 | Spot with arm |
+| `google_barkour_v0` | Google | 12 | Variable stiffness |
+| `google_barkour_vb` | Google | 12 | Barbell design |
 
-### Pendulums
-| Environment | Body Parts |
-|------------|------------|
-| `InvertedPendulum-v5`, `InvertedPendulum-v4` | cart, pole |
-| `InvertedDoublePendulum-v5`, `InvertedDoublePendulum-v4` | cart, poles |
+#### Humanoids & Bipeds
+| Robot | Maker | DoF | Description |
+|-------|-------|-----|-------------|
+| `agility_cassie` | Agility Robotics | 28 | Dynamic biped |
+| `unitree_h1` | Unitree | 19 | Full-size humanoid |
+| `unitree_g1` | Unitree | 37 | General-purpose humanoid |
+| `apptronik_apollo` | Apptronik | 32 | Industrial |
+| `booster_t1` | Booster | 23 | Full-size |
+| `fourier_n1` | Fourier | 30 | Expressive hands |
+| `robotis_op3` | ROBOTIS | 20 | Education |
+| `pal_talos` | PAL Robotics | 32 | Research |
 
-### Fetch Robotics
-| Environment | Body Parts |
-|------------|------------|
-| `FetchReach-v5`, `FetchPush-v5`, `FetchSlide-v5` | gripper |
-| `FetchPickAndPlace-v5` | gripper |
+#### Robotic Arms
+| Robot | Maker | DoF | Description |
+|-------|-------|-----|-------------|
+| `franka_panda` | Frania | 7 | Popular research arm |
+| `franka_fr3` | Frania | 7 | Latest Frania arm |
+| `kuka_iiwa_14` | KUKA | 7 | Industrial |
+| `ur5e` | Universal Robots | 6 | Collaborative |
+| `ur10e` | Universal Robots | 6 | Large collaborative |
+| `kinova_gen3` | Kinova | 7 | Compact service |
+| `xarm7` | UFACTORY | 7 | Budget 7-dof |
+| `lite6` | UFACTORY | 6 | Compact |
+| `sawyer` | Rethink | 7 | Cobot with face |
 
-### Shadow Hand
-| Environment | Body Parts |
-|------------|------------|
-| `HandReach-v5`, `HandManipulateBlock-v5` | finger tips |
-| `HandManipulateEgg-v5`, `HandManipulatePen-v5` | finger tips |
+#### Hands
+| Robot | Maker | DoF | Description |
+|-------|-------|-----|-------------|
+| `allegro_hand` | Wonik | 16 | Dexterous hand |
+| `shadow_hand` | Shadow | 24 | DEX-EE |
+| `leap_hand` | CMU | 16 | Low-profile |
+
+#### Mobile Manipulators
+| Robot | Maker | DoF | Description |
+|-------|-------|-----|-------------|
+| `google_robot` | Google | 9 | Mobile arm |
+| `stretch_2` | Hello Robot | 17 | Home assistant |
+| `stretch_3` | Hello Robot | 17 | Updated |
+| `aloha_2` | Trossen/DM | 16 | Bimanual |
+
+#### Drones
+| Robot | Maker | DoF | Description |
+|-------|-------|-----|-------------|
+| `crazyflie_2` | Bitcraze | 0 | Nano quadcopter |
+| `skydio_x2` | Skydio | 0 | Autonomous |
 
 ## Project Structure
 
 ```
 src/aesthetic_creatures/
-├── __init__.py      # Package exports
-├── config.py        # Configuration dataclasses
-├── envs.py          # Environment registry (50+ environments)
-├── model.py         # PPO model builder
-├── recorder.py      # Trajectory data capture
-├── render.py        # Video export
-├── art.py           # Abstract visualization (3 styles, 6 palettes)
-├── train.py         # Training script
-└── replay.py        # Replay & art generation
+├── __init__.py           # Package exports
+├── config.py             # Configuration dataclasses
+├── envs.py               # Environment registry (60+ environments)
+├── model.py              # PPO model builder
+├── recorder.py           # Trajectory data capture
+├── render.py             # Video export
+├── art.py                # Abstract visualization
+├── train.py              # Gymnasium training script
+├── train_menagerie.py     # Menagerie recording script
+└── replay.py             # Replay & art generation
 ```
 
-## Training
+## Training (Gymnasium)
 
 ```bash
-# Train on any environment
+# Standard environments
+python -m aesthetic_creatures.train --env-id Ant-v5 --total-timesteps 1000000
 python -m aesthetic_creatures.train --env-id Humanoid-v5 --total-timesteps 5000000
 
 # Custom hyperparameters
@@ -113,43 +144,29 @@ python -m aesthetic_creatures.train \
     --env-id HalfCheetah-v5 \
     --total-timesteps 2000000 \
     --learning-rate 1e-3 \
-    --n-envs 16 \
-    --hidden-size 512
-
-# Quick test run
-python -m aesthetic_creatures.train \
-    --env-id Ant-v5 \
-    --total-timesteps 50000 \
-    --chunk-timesteps 50000
+    --n-envs 16
 ```
 
-### Training Arguments
+## Recording (Menagerie)
 
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `--env-id` | Ant-v5 | Gymnasium environment ID |
-| `--total-timesteps` | 1,000,000 | Total training steps |
-| `--chunk-timesteps` | 50,000 | Steps per eval checkpoint |
-| `--n-envs` | 8 | Parallel environments |
-| `--learning-rate` | 3e-4 | PPO learning rate |
-| `--hidden-size` | 256 | Policy network size |
-| `--video-fps` | 30 | Output video framerate |
+```bash
+# First, clone MuJoCo Menagerie
+git clone https://github.com/google-deepmind/mujoco_menagerie.git
 
-### Output Structure
+# Record a robot (random policy for now)
+python -m aesthetic_creatures.train_menagerie \
+    --robot unitree_go2 \
+    --xml-path mujoco_menagerie/unitree_go2/scene.xml \
+    --num-episodes 3 \
+    --output-dir runs/go2
 
-```
-runs/{env_id}/
-├── config.json         # Training config
-├── metrics.csv         # Reward/length per checkpoint
-├── models/             # Saved PPO models (.zip)
-├── videos/             # Rendered episodes
-└── rollouts/           # Trajectory data (.npz)
+# List available robots
+python -m aesthetic_creatures.train_menagerie --list-robots
 ```
 
 ## Generating Art
 
 ### Art Styles
-
 | Style | Description |
 |-------|-------------|
 | `trail` | Glowing trail with dynamic coloring |
@@ -157,87 +174,27 @@ runs/{env_id}/
 | `particle` | Particle explosion effect |
 
 ### Color Palettes
-
 | Palette | Best For |
 |---------|----------|
-| `aurora` | Smooth, ethereal animations |
-| `fire` | Dramatic, energetic movements |
-| `ocean` | Fluid, underwater feel |
-| `neon` | Cyberpunk aesthetic |
-| `matrix` | Digital, tech vibes |
-| `sunset` | Warm, nostalgic tones |
-
-### Examples
+| `aurora` | Smooth, ethereal |
+| `fire` | Dramatic, energetic |
+| `ocean` | Fluid, underwater |
+| `neon` | Cyberpunk |
+| `matrix` | Digital, tech |
+| `sunset` | Warm, nostalgic |
 
 ```bash
 # Basic art
 python -m aesthetic_creatures.replay make-art-video \
-    --rollout-npz runs/ant_v5/rollouts/ant_v5_step_001000000.npz \
+    --rollout-npz runs/ant_v5/rollouts/...npz \
     --output-path art.mp4
 
-# Custom size and style
+# Custom style
 python -m aesthetic_creatures.replay make-art-video \
-    --rollout-npz runs/humanoid_v5/rollouts/humanoid_v5_step_005000000.npz \
+    --rollout-npz runs/go2/go2_rollout.npz \
     --output-path art.mp4 \
-    --width 1920 --height 1080 \
     --style particle --palette neon
-
-# Long trails
-python -m aesthetic_creatures.replay make-art-video \
-    --rollout-npz runs/ant_v5/rollouts/ant_v5_step_001000000.npz \
-    --output-path art.mp4 \
-    --history 120 --fps 30
 ```
-
-### Art Parameters
-
-| Argument | Default | Description |
-|----------|---------|-------------|
-| `--width` | 1080 | Output width |
-| `--height` | 1080 | Output height |
-| `--history` | 60 | Trail length in frames |
-| `--fps` | 30 | Output framerate |
-| `--style` | trail | Art style |
-| `--palette` | aurora | Color palette |
-
-## Replay
-
-Render a trained model as video:
-
-```bash
-python -m aesthetic_creatures.replay replay \
-    --env-id Ant-v5 \
-    --model-path runs/ant_v5/models/ppo_ant_v5_final.zip \
-    --output-path replay.mp4
-```
-
-Also saves rollout data for art generation.
-
-## Technical Details
-
-### Environment
-- **Gymnasium** with MuJoCo physics
-- **Stable-Baselines3** for PPO implementation
-- Vectorized training with `DummyVecEnv`
-- Environment-specific body part tracking
-
-### Trajectory Data
-The `.npz` files contain:
-- `env_id`: Environment name
-- `body_parts`: List of tracked body parts
-- `{body}_com`: 3D position of each body part
-- `qpos`: Generalized positions
-- `qvel`: Generalized velocities
-- `actions`: Control inputs applied
-- `rewards`: Per-step rewards
-- `frames`: Rendered RGB frames
-
-### Art Algorithm
-1. Extract body position trajectory from rollout
-2. Normalize to canvas coordinates
-3. Draw trails with color mapped to reward/action magnitude
-4. Render glow effect at current position
-5. Add overlay bars showing current intensity
 
 ## Requirements
 
@@ -245,6 +202,7 @@ The `.npz` files contain:
 - MuJoCo physics engine
 - PyTorch (for Stable-Baselines3)
 - imageio + imageio-ffmpeg (for video export)
+- mujoco_menagerie (optional, for real robot models)
 
 ## License
 
