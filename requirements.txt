@@ -1,6 +1,7 @@
-gymnasium>=0.29
-pybullet>=3.2.5
-numpy>=1.24
-trimesh>=4.0.0
-pygltflib>=1.16.0
-scipy>=1.10
+gymnasium[mujoco]>=1.0.0
+mujoco>=2.3.3
+stable-baselines3[extra]>=2.7.0
+numpy>=1.26
+imageio>=2.34
+imageio-ffmpeg>=0.5
+torch>=2.0

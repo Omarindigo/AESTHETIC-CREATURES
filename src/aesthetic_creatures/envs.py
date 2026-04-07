@@ -1,163 +1,56 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
-import numpy as np
 import gymnasium as gym
-import pybullet as p
-import pybullet_data
-
-from .utils import SimConfig
-from .creatures import get_creature_spec, build_creature
-from .controllers import OscillatorController, OscillatorParams
+import numpy as np
+from gymnasium.wrappers import RecordEpisodeStatistics
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
 
-@dataclass
-class EnvConfig:
-    creature: str = "starfish"
-    gui: bool = False
-    episode_seconds: float = 10.0
-    sim: SimConfig = SimConfig()
-    ground: bool = True
+def env_factory(env_id: str, seed: int, rank: int, render_mode: Optional[str] = None):
+    def _make():
+        env = gym.make(env_id, render_mode=render_mode)
+        env = RecordEpisodeStatistics(env)
+        env = Monitor(env)
+        env.reset(seed=seed + rank)
+        return env
+    return _make
 
 
-class AestheticCreatureEnv(gym.Env):
-    metadata = {"render_modes": ["human", "none"]}
+def make_training_env(env_id: str, n_envs: int, seed: int):
+    env_fns = [env_factory(env_id, seed, rank=i, render_mode=None) for i in range(n_envs)]
+    vec_env = DummyVecEnv(env_fns)
+    vec_env = VecMonitor(vec_env)
+    return vec_env
 
-    def __init__(self, cfg: EnvConfig):
-        super().__init__()
-        self.cfg = cfg
 
-        # Action controls oscillator params (amp, freq, phase_stride, bias, mode blend).
-        # Keeping it continuous makes it RL-ready later.
-        self.action_space = gym.spaces.Box(
-            low=np.array([0.0, 0.1, 0.0, -2.0, 0.0], dtype=np.float32),
-            high=np.array([2.0, 4.0, 2.5, 2.0, 1.0], dtype=np.float32),
-            dtype=np.float32,
-        )
+def make_eval_env(env_id: str, seed: int, render_mode: Optional[str] = "rgb_array"):
+    return env_factory(env_id, seed, rank=10_000, render_mode=render_mode)()
 
-        # Observation: base (pos, orn, lin vel, ang vel) + joint (pos, vel) for each joint.
-        # We don’t encode geometry here; geometry is fixed by creature spec, which matches your “shape determines motion” idea.
-        self._max_joints = 16
-        obs_dim = 3 + 4 + 3 + 3 + (self._max_joints * 2)
-        self.observation_space = gym.spaces.Box(
-            low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32
-        )
 
-        self.client_id = None
-        self.body_id = None
-        self.joint_count = 0
-        self.controller: Optional[OscillatorController] = None
-        self.t = 0.0
-        self.max_steps = int(self.cfg.episode_seconds / self.cfg.sim.time_step)
+def get_mujoco_state(env) -> Dict[str, np.ndarray]:
+    base = env.unwrapped
+    state: Dict[str, np.ndarray] = {}
 
-    def _connect(self):
-        if self.client_id is not None:
-            return
-        mode = p.GUI if self.cfg.gui else p.DIRECT
-        self.client_id = p.connect(mode)
-        p.setAdditionalSearchPath(pybullet_data.getDataPath())
+    if hasattr(base, "data"):
+        data = base.data
+        if hasattr(data, "qpos"):
+            state["qpos"] = np.array(data.qpos, dtype=np.float32).copy()
+        if hasattr(data, "qvel"):
+            state["qvel"] = np.array(data.qvel, dtype=np.float32).copy()
+        if hasattr(data, "cfrc_ext"):
+            state["cfrc_ext"] = np.array(data.cfrc_ext, dtype=np.float32).copy()
 
-        p.setGravity(*self.cfg.sim.gravity)
-        p.setTimeStep(self.cfg.sim.time_step)
+    try:
+        torso = base.get_body_com("torso")
+        state["torso_com"] = np.array(torso, dtype=np.float32).copy()
+    except Exception:
+        pass
 
-        if self.cfg.gui:
-            p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
+    return state
 
-    def _disconnect(self):
-        if self.client_id is not None:
-            p.disconnect(self.client_id)
-            self.client_id = None
 
-    def reset(self, *, seed: Optional[int] = None, options: Optional[dict] = None):
-        super().reset(seed=seed)
-        self._connect()
-        p.resetSimulation()
-
-        p.setGravity(*self.cfg.sim.gravity)
-        p.setTimeStep(self.cfg.sim.time_step)
-
-        if self.cfg.ground:
-            p.loadURDF("plane.urdf")
-
-        spec = get_creature_spec(self.cfg.creature)
-        self.body_id, _ = build_creature(spec, base_pos=(0.0, 0.0, 0.65))
-
-        self.joint_count = p.getNumJoints(self.body_id)
-        joint_indices = list(range(self.joint_count))
-
-        params = OscillatorController.from_defaults(spec.controller_defaults)
-        self.controller = OscillatorController(self.body_id, joint_indices, params)
-        self.controller.reset()
-
-        # Small random initial perturbation so runs aren’t identical.
-        for j in joint_indices:
-            p.resetJointState(self.body_id, j, targetValue=float(self.np_random.uniform(-0.1, 0.1)))
-
-        self.t = 0.0
-        obs = self._get_obs()
-        info = {}
-        return obs, info
-
-    def _get_obs(self) -> np.ndarray:
-        base_pos, base_orn = p.getBasePositionAndOrientation(self.body_id)
-        base_lin, base_ang = p.getBaseVelocity(self.body_id)
-
-        joint_pos = np.zeros((self._max_joints,), dtype=np.float32)
-        joint_vel = np.zeros((self._max_joints,), dtype=np.float32)
-
-        for j in range(min(self.joint_count, self._max_joints)):
-            js = p.getJointState(self.body_id, j)
-            joint_pos[j] = float(js[0])
-            joint_vel[j] = float(js[1])
-
-        obs = np.concatenate(
-            [
-                np.array(base_pos, dtype=np.float32),
-                np.array(base_orn, dtype=np.float32),
-                np.array(base_lin, dtype=np.float32),
-                np.array(base_ang, dtype=np.float32),
-                joint_pos,
-                joint_vel,
-            ],
-            axis=0,
-        )
-        return obs
-
-    def step(self, action: np.ndarray):
-        action = np.asarray(action, dtype=np.float32).reshape(-1)
-        amp, freq, phase_stride, bias, mode_mix = action.tolist()
-
-        # Update controller params each step.
-        if self.controller is not None:
-            self.controller.params.amp = float(amp)
-            self.controller.params.freq = float(freq)
-            self.controller.params.phase_stride = float(phase_stride)
-            self.controller.params.bias = float(bias)
-            self.controller.params.mode = 0 if float(mode_mix) < 0.5 else 1
-
-            self.controller.step(self.cfg.sim.time_step)
-
-        for _ in range(int(self.cfg.sim.substeps)):
-            p.stepSimulation()
-
-        self.t += float(self.cfg.sim.time_step)
-        obs = self._get_obs()
-
-        # “Reward” is deliberately aesthetic-neutral; we keep env usable without optimizing yet.
-        # For now: small alive reward so RL can run; later you can replace with novelty/energy/curation metrics.
-        reward = 0.1
-
-        terminated = False
-        truncated = (int(self.t / self.cfg.sim.time_step) >= self.max_steps)
-
-        info: Dict[str, Any] = {"t": self.t}
-        return obs, reward, terminated, truncated, info
-
-    def render(self):
-        # GUI handled by pybullet; nothing needed here.
-        return None
-
-    def close(self):
-        self._disconnect()
+def safe_array(x: Any, dtype=np.float32) -> np.ndarray:
+    return np.asarray(x, dtype=dtype)
