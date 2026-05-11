@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Aesthetic Creatures — MuJoCo Humanoid SAC training progression from 200K to 800K timesteps." />
+  <title>Aesthetic Creatures — Simulation Report</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <nav class="nav" role="navigation" aria-label="Main navigation">
+    <div class="nav__inner">
+      <span class="nav__logo">AC</span>
+      <ul class="nav__links">
+        <li><a href="#methodology">Methodology</a></li>
+        <li><a href="#progression">Progression</a></li>
+        <li><a href="#comparison">Comparison</a></li>
+        <li><a href="#supplementary">Supplementary</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <header class="hero" id="main">
+    <div class="hero__bg"></div>
+    <div class="hero__content">
+      <span class="hero__tag">Simulation Report</span>
+      <h1 class="hero__title">Aesthetic Creatures</h1>
+      <p class="hero__subtitle">MuJoCo Humanoid &middot; SAC Training &middot; 200K → 800K Timesteps</p>
+
+      <div class="stats" role="group" aria-label="Training statistics">
+        <div class="stat">
+          <span class="stat__num" data-count="800000">0</span>
+          <span class="stat__unit">timesteps</span>
+          <span class="stat__label">Max Training</span>
+        </div>
+        <div class="stat">
+          <span class="stat__num" data-count="69">0</span>
+          <span class="stat__unit">checkpoints</span>
+          <span class="stat__label">Saved Models</span>
+        </div>
+        <div class="stat">
+          <span class="stat__num" data-count="4">0</span>
+          <span class="stat__unit">videos</span>
+          <span class="stat__label">Featured Progression</span>
+        </div>
+        <div class="stat">
+          <span class="stat__num" data-count="1920">0</span>
+          <span class="stat__unit">&times;1080</span>
+          <span class="stat__label">Resolution</span>
+        </div>
+      </div>
+
+      <div class="hero__scroll" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 13l5 5 5-5M7 6l5 5 5-5"/></svg>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <section class="section reveal" id="methodology">
+      <div class="section__inner">
+        <h2 class="section__title">Methodology</h2>
+
+        <div class="tabs" role="tablist" aria-label="Methodology sections">
+          <button class="tab" role="tab" aria-selected="true" aria-controls="panel-why-sac" id="tab-why-sac" tabindex="0">Why SAC</button>
+          <button class="tab" role="tab" aria-selected="false" aria-controls="panel-architecture" id="tab-architecture" tabindex="-1">Architecture</button>
+          <button class="tab" role="tab" aria-selected="false" aria-controls="panel-config" id="tab-config" tabindex="-1">Config</button>
+          <button class="tab" role="tab" aria-selected="false" aria-controls="panel-code" id="tab-code" tabindex="-1">Code</button>
+          <span class="tabs__indicator" aria-hidden="true"></span>
+        </div>
+
+        <div class="panels">
+
+          <div class="panel panel--active" role="tabpanel" id="panel-why-sac" aria-labelledby="tab-why-sac">
+            <p>The project began with PPO (Proximal Policy Optimization) but migrated to SAC (Soft Actor-Critic) for the final pipeline. The transition was driven by five key factors:</p>
+            <div class="grid-2 reveal-children">
+              <div class="card"><h3>Sample Efficiency</h3><p>SAC is off-policy. It stores every experience in a 1M-capacity replay buffer and reuses them for multiple gradient updates. PPO discards data after one update pass. SAC learns to walk in far fewer environment steps.</p></div>
+              <div class="card"><h3>GPU Utilization</h3><p>SAC repeatedly samples training batches from the replay buffer and performs dense tensor ops. This keeps an NVIDIA GPU saturated. PPO's collect-once, update-once design is more CPU-bound and underutilizes GPU throughput.</p></div>
+              <div class="card"><h3>Exploration</h3><p>SAC incorporates entropy maximization directly into the reward function. The agent is rewarded for maintaining uncertainty, forcing wide exploration. PPO relies on fixed noise schedules and converges to premature local optima.</p></div>
+              <div class="card"><h3>Continuous Control</h3><p>SAC's twin-Q architecture mitigates value overestimation bias in continuous action spaces. This is critical for Humanoid's 17-DoF action space. PPO's clipped surrogate is simpler but less effective for high-DoF locomotion.</p></div>
+              <div class="card card--wide"><h3>Empirical Results</h3><p>PPO Humanoid-v5 plateaued at 250K timesteps with marginal walking quality. SAC Humanoid-v4 scaled cleanly to 800K timesteps with visibly more fluid gait at every checkpoint — from stumbling (200K) to stable walking (800K).</p></div>
+            </div>
+          </div>
+
+          <div class="panel" role="tabpanel" id="panel-architecture" aria-labelledby="tab-architecture" hidden>
+            <p>SAC is an off-policy actor-critic algorithm with three key innovations:</p>
+            <div class="grid-2 reveal-children">
+              <div class="card"><h3>Actor (Policy Network)</h3><p>Maps observations to action distributions. Updated to maximize both expected return and entropy, balancing exploitation with exploration.</p></div>
+              <div class="card"><h3>Twin Critics (Q&#8321;, Q&#8322;)</h3><p>Two Q-networks reduce overestimation bias by taking the minimum of their outputs. Target networks use soft Polyak averaging (&tau; = 0.005) for stable learning.</p></div>
+              <div class="card"><h3>Entropy Regularization</h3><p>Temperature &alpha; is learned automatically. High &alpha; drives exploration early in training; lower &alpha; narrows the policy as skill improves.</p></div>
+              <div class="card"><h3>Replay Buffer</h3><p>FIFO buffer of 1,000,000 transitions (s, a, r, s&prime;). Batches of 256 are sampled uniformly for each gradient step.</p></div>
+            </div>
+          </div>
+
+          <div class="panel" role="tabpanel" id="panel-config" aria-labelledby="tab-config" hidden>
+            <div class="table-wrap">
+              <table class="config-table" role="table" aria-label="Training configuration">
+                <thead>
+                  <tr><th scope="col">Parameter</th><th scope="col">Value</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Environment</td><td>Humanoid-v4 (MuJoCo)</td></tr>
+                  <tr><td>Algorithm</td><td>SAC (Soft Actor-Critic)</td></tr>
+                  <tr><td>Total Timesteps</td><td>800,000</td></tr>
+                  <tr><td>Save Interval</td><td>every 25,000 steps</td></tr>
+                  <tr><td>Batch Size</td><td>256</td></tr>
+                  <tr><td>Learning Rate</td><td>3 &times; 10<sup>-4</sup></td></tr>
+                  <tr><td>Replay Buffer</td><td>1,000,000</td></tr>
+                  <tr><td>Discount (&gamma;)</td><td>0.99</td></tr>
+                  <tr><td>Soft Update (&tau;)</td><td>0.005</td></tr>
+                  <tr><td>Network</td><td>MLP (256, 256)</td></tr>
+                  <tr><td>Hardware</td><td>NVIDIA GPU (CUDA)</td></tr>
+                  <tr><td>Render</td><td>1920 &times; 1080 @ 30 fps</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel" role="tabpanel" id="panel-code" aria-labelledby="tab-code" hidden>
+            <p>Key files in the project:</p>
+            <div class="grid-2 reveal-children">
+              <div class="card"><h3><code>train_sac.py</code></h3><p>Main SAC training loop. Creates environment, initialises model, trains in 25K-step chunks with periodic saves.</p></div>
+              <div class="card"><h3><code>render_checkpoints.py</code></h3><p>Loads a trained SAC checkpoint, runs 1000 environment steps, outputs 1080p MP4.</p></div>
+              <div class="card"><h3><code>train_interactive.py</code></h3><p>Interactive training with pause/resume/restart controls via keyboard input, plus periodic evaluation and preview rendering.</p></div>
+              <div class="card"><h3><code>aesthetic_creatures/</code></h3><p>Modular v3.0 pipeline: envs (50+ specs), models (PPO builder), recording (trajectory capture), rendering (art generation + video export), scripts (train + replay CLI).</p></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--dark reveal" id="progression">
+      <div class="section__inner">
+        <h2 class="section__title">Training Progression</h2>
+        <p class="section__desc">Four checkpoints from the SAC training run. Each video is 1000 frames (&asymp;33 s) at 1920&times;1080. Watch the gait stabilise from early stumbling to fluid locomotion.</p>
+
+        <div class="video-grid reveal-children">
+          <div class="video-card">
+            <div class="video-card__player">
+              <video controls preload="metadata" poster="">
+                <source src="../video/humanoid_200k.mp4" type="video/mp4" />
+              </video>
+            </div>
+            <div class="video-card__info">
+              <span class="badge">200K</span>
+              <p>Early gait — rough, unstable, limited coordination. The agent is still learning basic joint synchronisation.</p>
+            </div>
+          </div>
+
+          <div class="video-card">
+            <div class="video-card__player">
+              <video controls preload="metadata" poster="">
+                <source src="../video/humanoid_400k.mp4" type="video/mp4" />
+              </video>
+            </div>
+            <div class="video-card__info">
+              <span class="badge">400K</span>
+              <p>Mid-training — improved balance, more fluid motion, fewer falls. The policy is converging on a stable gait pattern.</p>
+            </div>
+          </div>
+
+          <div class="video-card">
+            <div class="video-card__player">
+              <video controls preload="metadata" poster="">
+                <source src="../video/humanoid_600k.mp4" type="video/mp4" />
+              </video>
+            </div>
+            <div class="video-card__info">
+              <span class="badge">600K</span>
+              <p>Late training — stable walking emerges. Smoother transitions between stride phases and better energy efficiency.</p>
+            </div>
+          </div>
+
+          <div class="video-card">
+            <div class="video-card__player">
+              <video controls preload="metadata" poster="">
+                <source src="../video/humanoid_800k.mp4" type="video/mp4" />
+              </video>
+            </div>
+            <div class="video-card__info">
+              <span class="badge">800K</span>
+              <p>Final checkpoint — the most refined locomotion. Consistent, balanced, and efficient walking gait.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section reveal" id="comparison">
+      <div class="section__inner">
+        <h2 class="section__title">Side-by-Side: 200K vs 800K</h2>
+        <p class="section__desc">Play both videos simultaneously to see the full gap between early and late training.</p>
+
+        <div class="compare">
+          <div class="compare__cols">
+            <div class="compare__col">
+              <span class="badge badge--red">200K Timesteps</span>
+              <div class="compare__player">
+                <video id="vid-early" controls preload="metadata" muted>
+                  <source src="../video/humanoid_200k.mp4" type="video/mp4" />
+                </video>
+              </div>
+            </div>
+            <div class="compare__col">
+              <span class="badge badge--green">800K Timesteps</span>
+              <div class="compare__player">
+                <video id="vid-late" controls preload="metadata" muted>
+                  <source src="../video/humanoid_800k.mp4" type="video/mp4" />
+                </video>
+              </div>
+            </div>
+          </div>
+          <div class="compare__controls">
+            <button class="btn" id="btn-sync-play" aria-label="Play both videos">&#9654; Play Both</button>
+            <button class="btn btn--outline" id="btn-sync-pause" aria-label="Pause both videos">&#9646;&#9646; Pause Both</button>
+            <button class="btn btn--outline" id="btn-sync-reset" aria-label="Reset both videos to start">&#8634; Reset</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--dark reveal" id="supplementary">
+      <div class="section__inner">
+        <h2 class="section__title">Supplementary</h2>
+        <p class="section__desc">Additional recordings from PPO training runs and earlier SAC renders.</p>
+
+        <div class="supp-grid reveal-children">
+          <div class="supp-card">
+            <video controls preload="metadata">
+              <source src="../video/humanoid_v5_step_000250000.mp4" type="video/mp4" />
+            </video>
+            <div class="supp-card__info">
+              <span class="badge badge--ppo">PPO</span> Humanoid-v5 250K
+            </div>
+          </div>
+
+          <div class="supp-card">
+            <video controls preload="metadata">
+              <source src="../video/humanoidstandup_v5_step_000200000.mp4" type="video/mp4" />
+            </video>
+            <div class="supp-card__info">
+              <span class="badge badge--ppo">PPO</span> Standup 200K
+            </div>
+          </div>
+
+          <div class="supp-card">
+            <video controls preload="metadata">
+              <source src="../video/walker2d_v5_step_000250000.mp4" type="video/mp4" />
+            </video>
+            <div class="supp-card__info">
+              <span class="badge badge--ppo">PPO</span> Walker2d-v5 250K
+            </div>
+          </div>
+
+          <div class="supp-card">
+            <video controls preload="metadata">
+              <source src="../video/humanoid_walk.mp4" type="video/mp4" />
+            </video>
+            <div class="supp-card__info">
+              <span class="badge badge--sac">SAC</span> Humanoid Walk
+            </div>
+          </div>
+
+          <div class="supp-card">
+            <video controls preload="metadata">
+              <source src="../video/humanoid_1min.mp4" type="video/mp4" />
+            </video>
+            <div class="supp-card__info">
+              <span class="badge badge--sac">SAC</span> 1-Minute Render
+            </div>
+          </div>
+
+          <div class="supp-card">
+            <video controls preload="metadata">
+              <source src="../video/humanoid_walk_hd.mp4" type="video/mp4" />
+            </video>
+            <div class="supp-card__info">
+              <span class="badge badge--sac">SAC</span> HD Render
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer__inner">
+      <p>Aesthetic Creatures &mdash; Simulation Report</p>
+      <p class="footer__meta">MuJoCo &middot; SAC &middot; PyTorch &middot; NVIDIA CUDA</p>
+    </div>
+  </footer>
+
+  <script src="js/script.js"></script>
+</body>
+</html>

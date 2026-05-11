@@ -37,7 +37,8 @@ def parse_args() -> argparse.Namespace:
     art_parser.add_argument("--fps", type=int, default=30)
     art_parser.add_argument("--history", type=int, default=60)
     art_parser.add_argument("--style", type=str, default="trail", choices=list_available_styles() + ["list"])
-    art_parser.add_argument("--palette", type=str, default="aurora", choices=list_available_palettes() + ["list"])
+    art_parser.add_argument("--palette", type=str, default="cyber", choices=list_available_palettes() + ["list"])
+    art_parser.add_argument("--seed", type=int, default=42)
 
     list_parser = subparsers.add_parser("list", help="List available styles and palettes.")
     list_parser.add_argument("--styles", action="store_true")
@@ -81,7 +82,7 @@ def run_replay(config: ReplayConfig) -> None:
     }, indent=2))
 
 
-def run_art(config: ArtConfig, style: str, palette: str) -> None:
+def run_art(config: ArtConfig, style: str, palette: str, seed: int = 42) -> None:
     make_art_video(
         rollout_npz=config.rollout_npz,
         output_path=config.output_path,
@@ -91,6 +92,7 @@ def run_art(config: ArtConfig, style: str, palette: str) -> None:
         history=config.history,
         style=style,
         palette=palette,
+        seed=seed,
     )
     print(json.dumps({"art_video": config.output_path, "style": style, "palette": palette}, indent=2))
 
@@ -148,7 +150,7 @@ def main() -> None:
             fps=args.fps,
             history=args.history,
         )
-        run_art(config, style, palette)
+        run_art(config, style, palette, seed=args.seed)
 
     else:
         raise ValueError(f"Unknown command: {args.command}")

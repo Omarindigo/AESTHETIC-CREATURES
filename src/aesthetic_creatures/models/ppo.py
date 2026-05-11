@@ -27,4 +27,10 @@ def build_model(config, env) -> PPO:
 
 
 def load_model(model_path: str) -> PPO:
+    from pathlib import Path
+    path = Path(model_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Model not found: {model_path}")
+    if not path.is_file():
+        raise ValueError(f"Model path is not a file: {model_path}")
     return PPO.load(model_path)

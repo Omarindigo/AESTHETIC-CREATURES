@@ -21,6 +21,8 @@ PALETTES: Dict[str, List[Tuple[int, int, int]]] = {
     "matrix": [(10, 30, 10), (20, 80, 20), (50, 150, 50), (100, 220, 100), (200, 255, 200)],
     "sunset": [(40, 10, 60), (120, 40, 80), (200, 80, 60), (255, 150, 50), (255, 220, 150)],
     "aurora": [(20, 60, 80), (40, 140, 120), (80, 200, 160), (140, 220, 200), (200, 255, 240)],
+    "cyber": [(0, 180, 200), (0, 229, 255), (200, 255, 0), (255, 255, 0), (255, 0, 170)],
+    "glow": [(204, 0, 204), (255, 0, 170), (0, 229, 255), (200, 255, 0), (255, 255, 0)],
 }
 
 
@@ -107,6 +109,10 @@ def norm_signal(sig: np.ndarray) -> np.ndarray:
 def make_trail_art(trajectory: np.ndarray, rewards: Optional[np.ndarray], actions: Optional[np.ndarray], width: int, height: int, history: int, palette: str) -> List[np.ndarray]:
     xy = normalize_xy(trajectory, width, height, padding=60)
     pal = PALETTES.get(palette, PALETTES["aurora"])
+
+    is_dark_palette = palette in ("cyber", "glow", "neon", "aurora")
+    bg_dark = (61, 0, 122) if is_dark_palette else (30, 0, 80)
+    bg_light = (26, 0, 80) if is_dark_palette else (20, 0, 60)
     
     if actions is not None and len(actions):
         action_mag = np.linalg.norm(actions, axis=1)
@@ -132,9 +138,15 @@ def make_trail_art(trajectory: np.ndarray, rewards: Optional[np.ndarray], action
 
     for i in range(len(xy)):
         img = np.zeros((height, width, 3), dtype=np.uint8)
-        img[:, :, 0] = int(pal[0][0] * 0.3)
-        img[:, :, 1] = int(pal[0][1] * 0.3)
-        img[:, :, 2] = int(pal[0][2] * 0.3)
+        if is_dark_palette:
+            gradient_factor = i / max(1, len(xy) - 1)
+            img[:, :, 0] = int(bg_dark[0] * (1 - gradient_factor * 0.3) + bg_light[0] * gradient_factor * 0.3)
+            img[:, :, 1] = int(bg_dark[1] * (1 - gradient_factor * 0.3) + bg_light[1] * gradient_factor * 0.3)
+            img[:, :, 2] = int(bg_dark[2] * (1 - gradient_factor * 0.3) + bg_light[2] * gradient_factor * 0.3)
+        else:
+            img[:, :, 0] = int(pal[0][0] * 0.3)
+            img[:, :, 1] = int(pal[0][1] * 0.3)
+            img[:, :, 2] = int(pal[0][2] * 0.3)
 
         start = max(0, i - hist)
         for j in range(start + 1, i + 1):
@@ -285,8 +297,10 @@ def make_art_video(
     history: int = 60,
     style: str = "trail",
     palette: str = "aurora",
+    seed: int = 42,
 ) -> None:
     data = np.load(rollout_npz)
+    np.random.seed(seed)
     
     trajectory = None
     for key in ["primary_com", "torso_com", "hand_com", "foot_com", "tip_com"]:

@@ -60,7 +60,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train MuJoCo agents with PPO and export rollout data.")
     
     envs = parser.add_argument_group("Environment")
-    envs.add_argument("--env-id", type=str, default="Ant-v5", help="Gymnasium environment ID")
+    envs.add_argument("--env-id", type=str, default="Humanoid-v5", help="Gymnasium environment ID")
+    envs.add_argument("--xml-file", type=str, default=None, help="Custom MuJoCo XML file")
     envs.add_argument("--list-envs", action="store_true", help="List all available environments")
     
     paths = parser.add_argument_group("Paths")
@@ -69,7 +70,7 @@ def parse_args() -> argparse.Namespace:
     training = parser.add_argument_group("Training")
     training.add_argument("--total-timesteps", type=int, default=1_000_000)
     training.add_argument("--chunk-timesteps", type=int, default=50_000)
-    training.add_argument("--n-envs", type=int, default=8)
+    training.add_argument("--n-envs", type=int, default=32)
     training.add_argument("--eval-max-steps", type=int, default=1000)
     training.add_argument("--seed", type=int, default=42)
 
@@ -203,22 +204,23 @@ def main() -> None:
     paths = prepare_run_dirs(config.output_dir)
     save_config(config, paths.config_json)
 
-    env = make_training_env(config.env_id, config.n_envs, config.seed)
+    env = make_training_env(config.env_id, config.n_envs, config.seed, xml_file=args.xml_file)
     model = build_model(config, env)
 
     timesteps_done = 0
-    while timesteps_done < config.total_timesteps:
-        learn_steps = min(config.chunk_timesteps, config.total_timesteps - timesteps_done)
-        model.learn(total_timesteps=learn_steps, reset_num_timesteps=False, progress_bar=True)
-        timesteps_done += learn_steps
+    try:
+        while timesteps_done < config.total_timesteps:
+            learn_steps = min(config.chunk_timesteps, config.total_timesteps - timesteps_done)
+            model.learn(total_timesteps=learn_steps, reset_num_timesteps=False, progress_bar=True)
+            timesteps_done += learn_steps
 
-        metrics = evaluate_and_export(model, config, timesteps_done, paths)
-        print(json.dumps(metrics, indent=2))
-
-    env_name = config.env_id.replace("-", "_").lower()
-    model.save(paths.models / f"ppo_{env_name}_final.zip")
-    env.close()
-    print("\nTraining complete!")
+            metrics = evaluate_and_export(model, config, timesteps_done, paths)
+            print(json.dumps(metrics, indent=2))
+    finally:
+        env_name = config.env_id.replace("-", "_").lower()
+        model.save(paths.models / f"ppo_{env_name}_final.zip")
+        env.close()
+        print("\nTraining complete!")
 
 
 if __name__ == "__main__":

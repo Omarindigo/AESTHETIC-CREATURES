@@ -258,9 +258,16 @@ def get_env_spec(env_id: str) -> EnvSpec:
     return EnvSpec(env_id=env_id, body_parts=["torso"])
 
 
-def env_factory(env_id: str, seed: int, rank: int, render_mode: Optional[str] = None):
+def make_custom_env(xml_file: str, **kwargs):
+    return gym.make("Humanoid-v5", xml_file=xml_file, **kwargs)
+
+
+def env_factory(env_id: str, seed: int, rank: int, render_mode: Optional[str] = None, xml_file: Optional[str] = None):
     def _make():
-        env = gym.make(env_id, render_mode=render_mode)
+        if xml_file:
+            env = gym.make(env_id, xml_file=xml_file, render_mode=render_mode)
+        else:
+            env = gym.make(env_id, render_mode=render_mode)
         env = RecordEpisodeStatistics(env)
         env = Monitor(env)
         env.reset(seed=seed + rank)
@@ -268,15 +275,15 @@ def env_factory(env_id: str, seed: int, rank: int, render_mode: Optional[str] = 
     return _make
 
 
-def make_training_env(env_id: str, n_envs: int, seed: int):
-    env_fns = [env_factory(env_id, seed, rank=i, render_mode=None) for i in range(n_envs)]
+def make_training_env(env_id: str, n_envs: int, seed: int, xml_file: Optional[str] = None):
+    env_fns = [env_factory(env_id, seed, rank=i, render_mode=None, xml_file=xml_file) for i in range(n_envs)]
     vec_env = DummyVecEnv(env_fns)
     vec_env = VecMonitor(vec_env)
     return vec_env
 
 
-def make_eval_env(env_id: str, seed: int, render_mode: Optional[str] = "rgb_array"):
-    return env_factory(env_id, seed, rank=10_000, render_mode=render_mode)()
+def make_eval_env(env_id: str, seed: int, render_mode: Optional[str] = "rgb_array", xml_file: Optional[str] = None):
+    return env_factory(env_id, seed, rank=10_000, render_mode=render_mode, xml_file=xml_file)()
 
 
 def get_mujoco_state(env, body_parts: Optional[List[str]] = None) -> Dict[str, np.ndarray]:

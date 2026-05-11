@@ -8,11 +8,12 @@ from typing import Dict, Tuple
 
 @dataclass
 class TrainConfig:
-    env_id: str = "Ant-v5"
-    output_dir: str = "runs/ant_art"
+    env_id: str = "Humanoid-v5"
+    xml_file: str = ""
+    output_dir: str = "runs/humanoid_art"
     total_timesteps: int = 1_000_000
     chunk_timesteps: int = 50_000
-    n_envs: int = 8
+    n_envs: int = 32
     eval_max_steps: int = 1000
     seed: int = 42
 
@@ -103,5 +104,8 @@ def prepare_run_dirs(output_dir: str) -> RunPaths:
 
 def save_config(config: TrainConfig, path: Path) -> None:
     ensure_dir(path.parent)
+    config_dict = config.to_dict()
+    if "policy_net" in config_dict and isinstance(config_dict["policy_net"], (list, tuple)):
+        config_dict["policy_net"] = list(config_dict["policy_net"])
     with path.open("w", encoding="utf-8") as f:
-        json.dump(config.to_dict(), f, indent=2)
+        json.dump(config_dict, f, indent=2)
